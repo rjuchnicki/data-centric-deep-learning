@@ -100,6 +100,8 @@ def build_regression_test(system, loader):
     # batch_is_correct: List[int] (not a torch.Tensor!)
     #   List of integers - 1 if the model got that element correct 
     #                    - 0 if the model got that element incorrect
+    batch_loss = F.cross_entropy(logits, labels, reduction='none').tolist()
+    batch_is_correct = (labels == preds).int().tolist()
     # ================================
     losses.extend(batch_loss)
     is_correct.extend(batch_is_correct)
