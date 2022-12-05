@@ -167,6 +167,35 @@ class TrainIdentifyReview(FlowSpec):
       # Types:
       # --
       # probs_: np.array[float] (shape: |test set|)
+      X_train, X_test = X[train_index], X[test_index]
+      y_train, y_test = y[train_index], y[test_index]
+
+      # pylint: disable=E1101
+      X_train = torch.from_numpy(X_train).float()
+      X_test = torch.from_numpy(X_test).float()
+      y_train = torch.from_numpy(y_train).float()
+      y_test = torch.from_numpy(y_test).float()
+      # pylint: enable=E1101
+
+      dataset_train = TensorDataset(X_train, y_train)
+      dataset_test = TensorDataset(X_test, y_test)
+      loader_train = DataLoader(
+        dataset_train,
+        batch_size=self.config.train.optimizer.batch_size, shuffle=True
+      )
+      loader_test = DataLoader(
+        dataset_test,
+        batch_size=self.config.train.optimizer.batch_size
+      )
+
+      system = SentimentClassifierSystem(self.config)
+      trainer = Trainer(max_epochs=self.config.train.optimizer.max_epochs)
+      trainer.fit(system, loader_train)
+
+      probs_ = trainer.predict(system, dataloaders=loader_test)
+      # pylint: disable=E1101
+      probs_ = torch.cat(probs_).squeeze(1).numpy()
+      # pylint: enable=E1101
       # ===============================================
       assert probs_ is not None, "`probs_` is not defined."
       probs[test_index] = probs_
@@ -211,6 +240,11 @@ class TrainIdentifyReview(FlowSpec):
     # Types
     # --
     # ranked_label_issues: List[int]
+    ranked_label_issues = find_label_issues(
+      np.asarray(self.all_df.label),
+      prob,
+      return_indices_ranked_by="self_confidence"
+    )
     # =============================
     assert ranked_label_issues is not None, "`ranked_label_issues` not defined."
 
@@ -307,6 +341,9 @@ class TrainIdentifyReview(FlowSpec):
     # dm.train_dataset.data = training slice of self.all_df
     # dm.dev_dataset.data = dev slice of self.all_df
     # dm.test_dataset.data = test slice of self.all_df
+    dm.train_dataset.data = self.all_df.iloc[0:train_size]
+    dm.dev_dataset.data = self.all_df.iloc[train_size:train_size + dev_size]
+    dm.test_dataset.data = self.all_df.iloc[train_size + dev_size:]
     # # ====================================
 
     # start from scratch
